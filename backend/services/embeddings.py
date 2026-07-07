@@ -1,24 +1,22 @@
-from functools import lru_cache
+import os
 
-from sentence_transformers import SentenceTransformer
-
-
-MODEL_NAME = "BAAI/bge-small-en-v1.5"
+from google import genai
 
 
-@lru_cache(maxsize=1)
-def get_embedding_model():
-    return SentenceTransformer(MODEL_NAME)
+MODEL_NAME = "gemini-embedding-001"
 
 
 def generate_embeddings(text_chunks):
     if isinstance(text_chunks, str):
         text_chunks = [text_chunks]
 
-    model = get_embedding_model()
-    embeddings = model.encode(
-        text_chunks,
-        normalize_embeddings=True,
-        show_progress_bar=False,
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+    client = genai.Client(api_key=api_key)
+    response = client.models.embed_content(
+        model=MODEL_NAME,
+        contents=text_chunks,
     )
-    return embeddings.tolist()
+    return [embedding.values for embedding in response.embeddings]

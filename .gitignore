@@ -47,6 +47,7 @@ frontend/.env.local
 
 # Runtime uploads and vector databases
 backend/uploads/
+backend/tmp_uploads/
 backend/vectordb/
 backend/chroma_db/
 chroma_db/
