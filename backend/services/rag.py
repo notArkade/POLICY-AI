@@ -3,11 +3,14 @@ import string
 
 from google import genai
 
-from services.retriever import retrieve_relevant_chunks
+from services.vector_store import get_document_count
 
 
 FALLBACK_ANSWER = (
     "I am sorry, but that is beyond my knowledge. I can only answer questions based on the uploaded policy documents."
+)
+NO_INDEXED_POLICIES_ANSWER = (
+    "I am sorry, but I do not have any indexed policy documents available right now. Please upload the policy documents again or ensure the vector database is available."
 )
 GREETING_ANSWER = (
     "Hello. I am the HR Policy Assistant. How may I help you with the uploaded policy documents today?"
@@ -35,6 +38,13 @@ def _is_greeting(question):
     return words[0] in GREETING_WORDS and len(words) <= 4
 
 
+def get_static_response(question):
+    if _is_greeting(question):
+        return GREETING_ANSWER
+
+    return None
+
+
 def _build_prompt(context, question):
     return f"""You are an HR Policy Assistant.
 
@@ -59,10 +69,16 @@ Question:
 
 
 def answer_question(question):
-    if _is_greeting(question):
-        return {"answer": GREETING_ANSWER, "sources": []}
+    static_response = get_static_response(question)
+    if static_response:
+        return {"answer": static_response, "sources": []}
+
+    if get_document_count() == 0:
+        return {"answer": NO_INDEXED_POLICIES_ANSWER, "sources": []}
 
     try:
+        from services.retriever import retrieve_relevant_chunks
+
         matches = retrieve_relevant_chunks(question, top_k=5)
     except Exception as exc:
         if "expecting embedding with dimension" in str(exc).lower():

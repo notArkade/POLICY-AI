@@ -1,4 +1,5 @@
 from pathlib import Path
+from functools import lru_cache
 from uuid import uuid4
 
 import chromadb
@@ -9,13 +10,22 @@ VECTOR_DB_DIR = BASE_DIR / "vectordb"
 COLLECTION_NAME = "policies"
 
 
-def get_collection():
+@lru_cache(maxsize=1)
+def get_client():
     VECTOR_DB_DIR.mkdir(parents=True, exist_ok=True)
-    client = chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
-    return client.get_or_create_collection(
+    return chromadb.PersistentClient(path=str(VECTOR_DB_DIR))
+
+
+@lru_cache(maxsize=1)
+def get_collection():
+    return get_client().get_or_create_collection(
         name=COLLECTION_NAME,
         metadata={"hnsw:space": "cosine"},
     )
+
+
+def get_document_count():
+    return get_collection().count()
 
 
 def add_documents(chunks, embeddings, metadata):

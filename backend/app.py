@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routes.chatbot import router as chatbot_router
 from routes.upload import router as policies_router
+from services.vector_store import get_document_count
 
 
 load_dotenv()
@@ -35,6 +36,15 @@ app.add_middleware(
 
 app.include_router(policies_router)
 app.include_router(chatbot_router)
+
+
+@app.on_event("startup")
+def warm_vector_store():
+    try:
+        count = get_document_count()
+        print(f"Vector store ready with {count} indexed policy chunks.")
+    except Exception as exc:
+        print(f"Vector store warmup skipped: {exc}")
 
 
 @app.get("/api/health")

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from services.rag import answer_question
+from services.rag import answer_question, get_static_response
 
 
 router = APIRouter(prefix="/api", tags=["chatbot"])
@@ -13,6 +13,13 @@ class ChatRequest(BaseModel):
 
 @router.post("/chat")
 def chat(request: ChatRequest):
+    static_response = get_static_response(request.question)
+    if static_response:
+        return {
+            "answer": static_response,
+            "sources": [],
+        }
+
     try:
         result = answer_question(request.question)
         return {
