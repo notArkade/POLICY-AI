@@ -92,7 +92,10 @@ async def upload_policy(
                 delete_policy_file(storage_path)
             except Exception:
                 pass
-        delete_policy_documents(policy_id)
+        try:
+            delete_policy_documents(policy_id)
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     finally:
         if temp_file_path and temp_file_path.exists():
