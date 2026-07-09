@@ -3,15 +3,22 @@ import { Bot, Send, X } from "lucide-react";
 import { storage } from "../services/localStorageService";
 import { askPolicyQuestion } from "../services/api";
 
+const getInitialMessages = () => [
+  {
+    role: "bot",
+    text: "Hi, I can help you find policy answers. Try asking about leave, attendance, onboarding, or working hours.",
+    timestamp: new Date().toISOString(),
+  },
+];
+
 const Chatbot = () => {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState(storage.getChatHistory);
+  const [messages, setMessages] = useState(getInitialMessages);
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
 
   useEffect(() => {
-    storage.saveChatHistory(messages);
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
