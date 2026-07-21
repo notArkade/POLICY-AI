@@ -2,6 +2,7 @@ import os
 import string
 
 from google import genai
+from google.genai import types
 
 from services.vector_store import get_document_count
 
@@ -39,36 +40,25 @@ GREETING_PHRASES = {
     "how are you",
     "whats up",
 }
-POLICY_KEYWORDS = {
-    "absence",
-    "attendance",
-    "benefit",
-    "benefits",
-    "company",
-    "conduct",
-    "department",
-    "employee",
-    "employees",
-    "hr",
-    "holiday",
-    "holidays",
-    "hour",
-    "hours",
-    "leave",
-    "onboarding",
-    "policy",
-    "policies",
-    "probation",
-    "recruitment",
-    "rule",
-    "rules",
-    "salary",
-    "shift",
-    "sick",
-    "vacation",
-    "work",
-    "working",
-}
+
+# Supabase's match_document_chunks RPC returns cosine similarity (higher is
+# better). A 0.45 minimum rejects weak semantic matches while still allowing
+# differently worded questions about a policy to be answered. It remains
+# configurable because embedding models/corpora can have different score ranges.
+DEFAULT_RETRIEVAL_THRESHOLD = 0.45
+
+SYSTEM_INSTRUCTION = f"""You are an HR Policy Assistant.
+
+Answer only from the retrieved policy context supplied by the user. Never use
+outside knowledge or invent policy details. If the context does not explicitly
+support a confident answer, respond exactly with:
+
+{FALLBACK_ANSWER}
+
+If retrieved documents conflict, clearly say that the uploaded documents contain
+conflicting information. Use a professional, concise tone. Cite every document
+used at the end of the answer with its document name and page number when one is
+available."""
 
 
 def _normalize_question(question):
@@ -92,43 +82,51 @@ def _is_greeting(question):
     return words[0] in GREETING_WORDS and len(words) <= 6
 
 
-def _is_policy_related(question):
-    normalized_question = _normalize_question(question)
-    words = set(normalized_question.split())
-    return bool(words & POLICY_KEYWORDS)
-
-
 def get_static_response(question):
+    """Only greetings bypass retrieval; relevance is decided by vector search."""
     if _is_greeting(question):
         return GREETING_ANSWER
-
-    if not _is_policy_related(question):
-        return FALLBACK_ANSWER
-
     return None
 
 
-def _build_prompt(context, question):
-    return f"""You are an HR Policy Assistant.
+def _retrieval_threshold():
+    try:
+        return float(os.getenv("RAG_RETRIEVAL_THRESHOLD", DEFAULT_RETRIEVAL_THRESHOLD))
+    except ValueError:
+        return DEFAULT_RETRIEVAL_THRESHOLD
 
-Use a polite, formal tone.
 
-Answer ONLY from the provided policy context. Do not use general knowledge.
+def _has_sufficient_retrieval_quality(matches):
+    if not matches:
+        return False
+    try:
+        return float(matches[0].get("score", 0)) >= _retrieval_threshold()
+    except (TypeError, ValueError):
+        return False
 
-Unrelated non-policy questions should already be filtered before this prompt. If one still appears, respond exactly with:
 
-"{FALLBACK_ANSWER}"
+def _build_context(matches):
+    context_chunks = []
+    for match in matches:
+        metadata = match.get("metadata") or {}
+        document_name = metadata.get("file_name") or metadata.get("policy_name") or "Unknown document"
+        page_number = metadata.get("page_number")
+        section = metadata.get("section") or metadata.get("category")
 
-If the user's question is policy-related but the relevant policy is not present in the provided context, respond exactly with:
+        details = [f"Document: {document_name}"]
+        if page_number is not None:
+            details.append(f"Page: {page_number}")
+        if section:
+            details.append(f"Section: {section}")
+        details.append(f"Content:\n{match.get('chunk', '').strip()}")
+        context_chunks.append("\n\n".join(details))
 
-"{NO_INDEXED_POLICIES_ANSWER}"
+    return "\n\n---\n\n".join(context_chunks)
 
-Context:
-{context}
 
-Question:
-{question}
-"""
+def _build_user_prompt(context, question):
+    """Keep behavioral rules in Gemini's system instruction, not this prompt."""
+    return f"Retrieved policy context:\n{context}\n\nQuestion:\n{question}"
 
 
 def answer_question(question):
@@ -148,10 +146,12 @@ def answer_question(question):
             return {"answer": FALLBACK_ANSWER, "sources": []}
         raise
 
-    context = "\n\n---\n\n".join(match["chunk"] for match in matches)
+    if not _has_sufficient_retrieval_quality(matches):
+        return {"answer": FALLBACK_ANSWER, "sources": matches or []}
 
+    context = _build_context(matches)
     if not context.strip():
-        return {"answer": NO_INDEXED_POLICIES_ANSWER, "sources": []}
+        return {"answer": FALLBACK_ANSWER, "sources": matches}
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -160,10 +160,11 @@ def answer_question(question):
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=_build_prompt(context, question),
+        contents=_build_user_prompt(context, question),
+        config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
     )
 
     return {
-        "answer": response.text or NO_INDEXED_POLICIES_ANSWER,
+        "answer": response.text or FALLBACK_ANSWER,
         "sources": matches,
     }
