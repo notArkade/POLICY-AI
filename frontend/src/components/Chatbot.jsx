@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Send, X } from "lucide-react";
 import { storage } from "../services/localStorageService";
 import { askPolicyQuestion } from "../services/api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+
+import "highlight.js/styles/github.css";
 
 const getInitialMessages = () => [
   {
@@ -27,7 +32,10 @@ const Chatbot = () => {
     const query = input.trim();
     if (!query || loading) return;
     const timestamp = new Date().toISOString();
-    setMessages((current) => [...current, { role: "user", text: query, timestamp }]);
+    setMessages((current) => [
+      ...current,
+      { role: "user", text: query, timestamp },
+    ]);
     setInput("");
 
     try {
@@ -41,7 +49,9 @@ const Chatbot = () => {
       ]);
       storage.addChatLog({ query, response, timestamp: responseTimestamp });
     } catch (err) {
-      const response = err.response?.data?.detail || "I could not reach the policy assistant API.";
+      const response =
+        err.response?.data?.detail ||
+        "I could not reach the policy assistant API.";
       setMessages((current) => [
         ...current,
         { role: "bot", text: response, timestamp: new Date().toISOString() },
@@ -75,7 +85,9 @@ const Chatbot = () => {
             </span>
             <div>
               <h2 className="font-semibold text-slate-950">Policy Assistant</h2>
-              <p className="text-sm text-slate-500">AI answers from HR policy docs</p>
+              <p className="text-sm text-slate-500">
+                AI answers from HR policy docs
+              </p>
             </div>
           </div>
           <button
@@ -101,7 +113,106 @@ const Chatbot = () => {
                     : "border border-slate-200 bg-white text-slate-700"
                 }`}
               >
-                {message.text}
+                {message.role === "bot" ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeHighlight]}
+                    components={{
+                      h1: ({ children }) => (
+                        <h1 className="text-2xl font-bold mt-5 mb-3">
+                          {children}
+                        </h1>
+                      ),
+
+                      h2: ({ children }) => (
+                        <h2 className="text-xl font-semibold mt-4 mb-2">
+                          {children}
+                        </h2>
+                      ),
+
+                      h3: ({ children }) => (
+                        <h3 className="text-lg font-semibold mt-3 mb-2">
+                          {children}
+                        </h3>
+                      ),
+
+                      p: ({ children }) => (
+                        <p className="mb-3 leading-7">{children}</p>
+                      ),
+
+                      ul: ({ children }) => (
+                        <ul className="list-disc ml-5 mb-3 space-y-1">
+                          {children}
+                        </ul>
+                      ),
+
+                      ol: ({ children }) => (
+                        <ol className="list-decimal ml-5 mb-3 space-y-1">
+                          {children}
+                        </ol>
+                      ),
+
+                      li: ({ children }) => <li>{children}</li>,
+
+                      strong: ({ children }) => (
+                        <strong className="font-semibold text-slate-900">
+                          {children}
+                        </strong>
+                      ),
+
+                      blockquote: ({ children }) => (
+                        <blockquote className="border-l-4 border-blue-500 pl-4 italic text-slate-600 my-3">
+                          {children}
+                        </blockquote>
+                      ),
+
+                      code({ inline, className, children }) {
+                        return inline ? (
+                          <code className="rounded bg-slate-100 px-1 py-0.5 text-red-600">
+                            {children}
+                          </code>
+                        ) : (
+                          <pre className="my-4 overflow-x-auto rounded-lg bg-slate-900 p-4 text-sm text-white">
+                            <code className={className}>{children}</code>
+                          </pre>
+                        );
+                      },
+
+                      table: ({ children }) => (
+                        <div className="overflow-x-auto my-4">
+                          <table className="min-w-full border border-slate-300">
+                            {children}
+                          </table>
+                        </div>
+                      ),
+
+                      th: ({ children }) => (
+                        <th className="border bg-slate-100 px-3 py-2 text-left font-semibold">
+                          {children}
+                        </th>
+                      ),
+
+                      td: ({ children }) => (
+                        <td className="border px-3 py-2">{children}</td>
+                      ),
+
+                      a: ({ href, children }) => (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          {children}
+                        </a>
+                      ),
+                    }}
+                  >
+                    {message.text}
+                  </ReactMarkdown>
+                ) : (
+                  message.text
+                )}
               </div>
             </div>
           ))}
@@ -115,7 +226,10 @@ const Chatbot = () => {
           <div ref={endRef} />
         </div>
 
-        <form onSubmit={handleSubmit} className="flex gap-2 border-t border-slate-200 bg-white p-4">
+        <form
+          onSubmit={handleSubmit}
+          className="flex gap-2 border-t border-slate-200 bg-white p-4"
+        >
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
