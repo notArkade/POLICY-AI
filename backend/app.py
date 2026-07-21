@@ -18,7 +18,8 @@ default_origins = [
     "http://127.0.0.1:5173",
     "https://policy-ai-sandy.vercel.app",
     "https://policy-418xpb30a-notarkades-projects.vercel.app",
-    "https://policy-ai-notarkades-projects.vercel.app"
+    "https://policy-ai-notarkades-projects.vercel.app",
+    "https://policy-p83phzojq-notarkades-projects.vercel.app"
 ]
 extra_origins = [
     origin.strip().rstrip("/")
