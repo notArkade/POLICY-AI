@@ -27,6 +27,8 @@ GREETING_WORDS = {
     "namaste",
     "sup",
     "yo",
+    "hello there",
+    "hola",
 }
 GREETING_PHRASES = {
     "good afternoon",

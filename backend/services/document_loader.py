@@ -42,10 +42,12 @@
 #     return text
 
 import re
+from io import BytesIO
 from pathlib import Path
 
 from docx import Document
 from langchain_community.document_loaders import PyPDFLoader
+from pypdf import PdfReader
 
 
 SUPPORTED_SUFFIXES = {".pdf", ".docx", ".doc"}
@@ -118,6 +120,40 @@ def load_document(file_path):
         return load_doc(path)
 
     raise ValueError(f"Unsupported document type: {path.suffix}")
+
+
+def load_document_bytes(file_bytes: bytes, file_name: str):
+    """Extract text from an upload held entirely in memory.
+
+    Original files are persisted in Supabase Storage; no server-local copy is
+    created merely to index a document.
+    """
+    suffix = Path(file_name).suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        allowed = ", ".join(sorted(SUPPORTED_SUFFIXES))
+        raise ValueError(f"Unsupported document type {suffix}. Allowed: {allowed}")
+
+    if suffix == ".pdf":
+        reader = PdfReader(BytesIO(file_bytes))
+        text = "\n".join((page.extract_text() or "").strip() for page in reader.pages)
+    elif suffix == ".docx":
+        document = Document(BytesIO(file_bytes))
+        text = "\n".join(paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip())
+    else:
+        candidates = []
+        for encoding in ("utf-16le", "latin-1"):
+            decoded = file_bytes.decode(encoding, errors="ignore")
+            candidates.extend(re.findall(r"[A-Za-z0-9][\w\s.,;:!?()/%&\-]{20,}", decoded))
+        text = "\n".join(dict.fromkeys(candidate.strip() for candidate in candidates))
+
+    return _ensure_text(text, file_name)
+
+
+def get_page_texts_from_bytes(file_bytes: bytes, file_name: str):
+    """Return PDF page text for chunk citation metadata (one-based pages)."""
+    if Path(file_name).suffix.lower() != ".pdf":
+        return []
+    return [(page.extract_text() or "").strip() for page in PdfReader(BytesIO(file_bytes)).pages]
 
 
 def load_all_documents():
