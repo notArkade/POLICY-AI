@@ -21,8 +21,14 @@ const Login = () => {
       await loginAdmin(username, password);
       setAdminAuthenticated();
       navigate(location.state?.from?.pathname || "/admin/dashboard", { replace: true });
-    } catch {
-      setError("Invalid username or password.");
+    } catch (err) {
+      if (err.code === "ECONNABORTED") {
+        setError("The login service took too long to respond. Please try again.");
+      } else if (!err.response) {
+        setError("The login service is unavailable. Please check that the API is running.");
+      } else {
+        setError("Invalid username or password.");
+      }
     } finally {
       setLoading(false);
     }
