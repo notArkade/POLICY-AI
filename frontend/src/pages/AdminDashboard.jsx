@@ -1,4 +1,13 @@
 import { Outlet } from "react-router-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import DashboardCards from "../components/DashboardCards";
 import Sidebar from "../components/Sidebar";
 import { useDashboardAnalytics } from "../hooks/useDashboardAnalytics";
@@ -21,13 +30,16 @@ const Overview = () => {
           {loading ? (
             <div className="mt-5 h-56 animate-pulse rounded-md bg-slate-100" />
           ) : analytics?.totalPolicies ? (
-            <div className="mt-5 flex h-56 items-end gap-3">
-              {analytics.uploadStatistics.map((week) => (
-                <div key={week.start.toISOString()} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="w-full rounded-t-md bg-blue-500" style={{ height: `${week.height}%` }} title={`${week.count} uploads`} />
-                  <span className="text-xs text-slate-500">{week.label}</span>
-                </div>
-              ))}
+            <div className="mt-5 h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analytics.uploadStatistics.map(({ label, count }) => ({ week: label, uploads: count }))}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="week" tickLine={false} axisLine={false} />
+                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
+                  <Tooltip cursor={{ fill: "#eff6ff" }} />
+                  <Bar dataKey="uploads" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           ) : (
             <p className="mt-5 flex h-56 items-center justify-center text-sm text-slate-500">No upload data available</p>

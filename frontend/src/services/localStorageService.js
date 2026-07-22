@@ -96,13 +96,28 @@ export const storage = {
     ]);
   },
   getDashboardChatLogs() {
-    return parse(localStorage.getItem(keys.chatLogs), []);
+    return parse(localStorage.getItem(keys.chatLogs), []).filter(
+      (log) => log && typeof log === "object"
+    );
+  },
+  saveChatLogs(logs) {
+    localStorage.setItem(keys.chatLogs, JSON.stringify(logs));
+    notifyDashboardDataChanged();
   },
   addChatLog(log) {
     const logs = [{ ...log, id: crypto.randomUUID() }, ...storage.getChatLogs()];
-    localStorage.setItem(keys.chatLogs, JSON.stringify(logs));
-    notifyDashboardDataChanged();
+    storage.saveChatLogs(logs);
     return logs;
+  },
+  deleteChatLog(id) {
+    if (!id) return storage.getDashboardChatLogs();
+    const logs = storage.getDashboardChatLogs().filter((log) => log.id !== id);
+    storage.saveChatLogs(logs);
+    return logs;
+  },
+  clearChatLogs() {
+    storage.saveChatLogs([]);
+    return [];
   },
   getSettings() {
     return parse(localStorage.getItem(keys.settings), defaultSettings);
