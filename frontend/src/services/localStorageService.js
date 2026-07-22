@@ -23,6 +23,12 @@ const defaultSettings = {
   weeklyDigest: false,
 };
 
+export const DASHBOARD_DATA_UPDATED = "policy-ai-dashboard-data-updated";
+
+const notifyDashboardDataChanged = () => {
+  window.dispatchEvent(new Event(DASHBOARD_DATA_UPDATED));
+};
+
 const parse = (value, fallback) => {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -37,6 +43,7 @@ export const storage = {
   },
   savePolicies(policies) {
     localStorage.setItem(keys.policies, JSON.stringify(policies));
+    notifyDashboardDataChanged();
   },
   addPolicy(policy) {
     const policies = storage.getPolicies();
@@ -64,6 +71,7 @@ export const storage = {
   },
   saveCategories(categories) {
     localStorage.setItem(keys.categories, JSON.stringify(categories));
+    notifyDashboardDataChanged();
   },
   getChatHistory() {
     return parse(localStorage.getItem(keys.chatHistory), [
@@ -87,9 +95,13 @@ export const storage = {
       },
     ]);
   },
+  getDashboardChatLogs() {
+    return parse(localStorage.getItem(keys.chatLogs), []);
+  },
   addChatLog(log) {
     const logs = [{ ...log, id: crypto.randomUUID() }, ...storage.getChatLogs()];
     localStorage.setItem(keys.chatLogs, JSON.stringify(logs));
+    notifyDashboardDataChanged();
     return logs;
   },
   getSettings() {

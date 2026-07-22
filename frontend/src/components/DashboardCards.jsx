@@ -1,22 +1,12 @@
 import { FileText, FolderTree, MessageCircle, UploadCloud } from "lucide-react";
-import { storage } from "../services/localStorageService";
-
-const DashboardCards = () => {
-  const policies = storage.getPolicies();
-  const categories = storage.getCategories();
-  const logs = storage.getChatLogs();
+const DashboardCards = ({ analytics, loading }) => {
   const currentMonth = new Date().toLocaleString("en-US", { month: "short", year: "numeric" });
-  const uploadedThisMonth = policies.filter((policy) => {
-    const uploaded = new Date(policy.uploadDate);
-    const now = new Date();
-    return uploaded.getMonth() === now.getMonth() && uploaded.getFullYear() === now.getFullYear();
-  }).length;
 
   const cards = [
-    { label: "Total Policies", value: policies.length, icon: FileText, color: "text-blue-700" },
-    { label: "Categories", value: categories.length, icon: FolderTree, color: "text-emerald-700" },
-    { label: `Uploaded ${currentMonth}`, value: uploadedThisMonth, icon: UploadCloud, color: "text-violet-700" },
-    { label: "Chat Queries", value: logs.length, icon: MessageCircle, color: "text-amber-700" },
+    { label: "Total Policies", value: analytics?.totalPolicies, icon: FileText, color: "text-blue-700" },
+    { label: "Categories", value: analytics?.categoryCount, icon: FolderTree, color: "text-emerald-700" },
+    { label: `Uploaded ${currentMonth}`, value: analytics?.uploadedThisMonth, icon: UploadCloud, color: "text-violet-700" },
+    { label: "Chat Queries", value: analytics?.chatQueries, icon: MessageCircle, color: "text-amber-700" },
   ];
 
   return (
@@ -27,7 +17,11 @@ const DashboardCards = () => {
             <p className="text-sm font-medium text-slate-500">{label}</p>
             <Icon className={`h-5 w-5 ${color}`} />
           </div>
-          <p className="mt-4 text-3xl font-semibold text-slate-950">{value}</p>
+          {loading ? (
+            <div className="mt-4 h-9 w-12 animate-pulse rounded bg-slate-100" />
+          ) : (
+            <p className="mt-4 text-3xl font-semibold text-slate-950">{value}</p>
+          )}
         </article>
       ))}
     </div>
