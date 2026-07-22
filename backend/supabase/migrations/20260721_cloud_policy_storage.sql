@@ -1,6 +1,16 @@
 -- Run this once in Supabase SQL Editor (or through your migration workflow).
 create extension if not exists vector;
 
+create table if not exists public.admin_credentials (
+  id uuid primary key default gen_random_uuid(),
+  username text not null unique,
+  password text not null
+);
+
+insert into public.admin_credentials (username, password)
+values ('admin', 'admin123')
+on conflict (username) do update set password = excluded.password;
+
 insert into storage.buckets (id, name, public)
 values ('policy-documents', 'policy-documents', false)
 on conflict (id) do nothing;

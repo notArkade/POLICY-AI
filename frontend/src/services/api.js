@@ -19,6 +19,11 @@ export const askPolicyQuestion = (question) => {
 };
 
 
+export const loginAdmin = (username, password) => {
+  return api.post("/api/admin/login", { username, password });
+};
+
+
 export const listPolicies = () => {
   return api.get("/api/policies");
 };

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routes.chatbot import router as chatbot_router
 from routes.upload import router as policies_router
+from routes.admin import router as admin_router
 from services.vector_store import get_document_count
 
 
@@ -37,6 +38,7 @@ app.add_middleware(
 
 app.include_router(policies_router)
 app.include_router(chatbot_router)
+app.include_router(admin_router)
 
 
 @app.on_event("startup")

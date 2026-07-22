@@ -85,7 +85,7 @@ const Home = () => {
             <h2 className="font-semibold text-white">Quick links</h2>
             <div className="mt-3 flex flex-col gap-2 text-sm">
               <Link to="/">Home</Link>
-              <Link to="/admin">Admin</Link>
+              <Link to="/login">Login as Admin</Link>
             </div>
           </div>
           <div>
