@@ -16,6 +16,46 @@ const getInitialMessages = () => [
   },
 ];
 
+const GREETING_ANSWER =
+  "Hello. I am the HR Policy Assistant. How may I help you with the uploaded policy documents today?";
+const GREETING_WORDS = new Set([
+  "aloha",
+  "greetings",
+  "hello",
+  "hey",
+  "hiya",
+  "howdy",
+  "hi",
+  "namaste",
+  "sup",
+  "yo",
+  "hola",
+]);
+const GREETING_PHRASES = new Set([
+  "good afternoon",
+  "good day",
+  "good evening",
+  "good morning",
+  "hope you are well",
+  "how are you",
+  "whats up",
+]);
+
+const normalizeGreeting = (question) =>
+  question.toLowerCase().replace(/[^\w\s]/g, "").trim().replace(/\s+/g, " ");
+
+const isGreeting = (question) => {
+  const normalized = normalizeGreeting(question);
+  const words = normalized.split(" ").filter(Boolean);
+
+  if (GREETING_PHRASES.has(normalized)) return true;
+  if (!words.length) return false;
+  if ([...GREETING_PHRASES].some((phrase) => normalized.startsWith(`${phrase} `))) {
+    return words.length <= 6;
+  }
+  return GREETING_WORDS.has(words[0]) && words.length <= 6;
+};
+
 const Chatbot = () => {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -37,6 +77,16 @@ const Chatbot = () => {
       { role: "user", text: query, timestamp },
     ]);
     setInput("");
+
+    if (isGreeting(query)) {
+      const responseTimestamp = new Date().toISOString();
+      setMessages((current) => [
+        ...current,
+        { role: "bot", text: GREETING_ANSWER, timestamp: responseTimestamp },
+      ]);
+      storage.addChatLog({ query, response: GREETING_ANSWER, timestamp: responseTimestamp });
+      return;
+    }
 
     try {
       setLoading(true);

@@ -13,6 +13,9 @@ FALLBACK_ANSWER = (
 NO_INDEXED_POLICIES_ANSWER = (
     "I am sorry, but I do not have any indexed policy documents available right now. Please upload the policy documents again or ensure the vector database is available."
 )
+POLICY_NOT_FOUND_ANSWER = (
+    "I couldn't find any information about this policy in the uploaded policy documents."
+)
 GREETING_ANSWER = (
     "Hello. I am the HR Policy Assistant. How may I help you with the uploaded policy documents today?"
 )
@@ -46,12 +49,21 @@ GREETING_PHRASES = {
 # differently worded questions about a policy to be answered. It remains
 # configurable because embedding models/corpora can have different score ranges.
 DEFAULT_RETRIEVAL_THRESHOLD = 0.45
+# Scores below this value indicate that the question is unrelated to the
+# uploaded HR policies. Scores between this and the retrieval threshold are
+# policy-like questions whose requested policy was not found in the documents.
+DEFAULT_UNRELATED_THRESHOLD = 0.20
 
 SYSTEM_INSTRUCTION = f"""You are an HR Policy Assistant.
 
 Answer only from the retrieved policy context supplied by the user. Never use
-outside knowledge or invent policy details. If the context does not explicitly
-support a confident answer, respond exactly with:
+outside knowledge, hallucinate, or invent policy details. If the retrieved
+context is relevant but does not contain the requested policy, respond exactly
+with:
+
+{POLICY_NOT_FOUND_ANSWER}
+
+If the question is unrelated to HR policies, respond exactly with:
 
 {FALLBACK_ANSWER}
 
@@ -83,7 +95,6 @@ def _is_greeting(question):
 
 
 def get_static_response(question):
-    """Only greetings bypass retrieval; relevance is decided by vector search."""
     if _is_greeting(question):
         return GREETING_ANSWER
     return None
@@ -96,13 +107,33 @@ def _retrieval_threshold():
         return DEFAULT_RETRIEVAL_THRESHOLD
 
 
-def _has_sufficient_retrieval_quality(matches):
-    if not matches:
-        return False
+def _unrelated_threshold():
     try:
-        return float(matches[0].get("score", 0)) >= _retrieval_threshold()
+        threshold = float(
+            os.getenv("RAG_UNRELATED_THRESHOLD", DEFAULT_UNRELATED_THRESHOLD)
+        )
+        return min(threshold, _retrieval_threshold())
+    except ValueError:
+        return DEFAULT_UNRELATED_THRESHOLD
+
+
+def _top_retrieval_score(matches):
+    if not matches:
+        return None
+    try:
+        return float(matches[0].get("score", 0))
     except (TypeError, ValueError):
-        return False
+        return None
+
+
+def _has_sufficient_retrieval_quality(matches):
+    score = _top_retrieval_score(matches)
+    return score is not None and score >= _retrieval_threshold()
+
+
+def _is_policy_like_question(matches):
+    score = _top_retrieval_score(matches)
+    return score is not None and score >= _unrelated_threshold()
 
 
 def _build_context(matches):
@@ -125,17 +156,21 @@ def _build_context(matches):
 
 
 def _build_user_prompt(context, question):
-    """Keep behavioral rules in Gemini's system instruction, not this prompt."""
+
     return f"Retrieved policy context:\n{context}\n\nQuestion:\n{question}"
 
 
 def answer_question(question):
     static_response = get_static_response(question)
     if static_response:
-        return {"answer": static_response, "sources": []}
+        return {"answer": static_response, "sources": [], "response_type": "greeting"}
 
     if get_document_count() == 0:
-        return {"answer": NO_INDEXED_POLICIES_ANSWER, "sources": []}
+        return {
+            "answer": NO_INDEXED_POLICIES_ANSWER,
+            "sources": [],
+            "response_type": "no_documents",
+        }
 
     try:
         from services.retriever import retrieve_relevant_chunks
@@ -143,15 +178,21 @@ def answer_question(question):
         matches = retrieve_relevant_chunks(question, top_k=5)
     except Exception as exc:
         if "expecting embedding with dimension" in str(exc).lower():
-            return {"answer": FALLBACK_ANSWER, "sources": []}
+            return {"answer": FALLBACK_ANSWER, "sources": [], "response_type": "fallback"}
         raise
 
     if not _has_sufficient_retrieval_quality(matches):
-        return {"answer": FALLBACK_ANSWER, "sources": matches or []}
+        if _is_policy_like_question(matches):
+            return {
+                "answer": POLICY_NOT_FOUND_ANSWER,
+                "sources": matches or [],
+                "response_type": "policy_not_found",
+            }
+        return {"answer": FALLBACK_ANSWER, "sources": matches or [], "response_type": "fallback"}
 
     context = _build_context(matches)
     if not context.strip():
-        return {"answer": FALLBACK_ANSWER, "sources": matches}
+        return {"answer": FALLBACK_ANSWER, "sources": matches, "response_type": "fallback"}
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -164,7 +205,11 @@ def answer_question(question):
         config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
     )
 
-    return {
-        "answer": response.text or FALLBACK_ANSWER,
-        "sources": matches,
-    }
+    answer = response.text or FALLBACK_ANSWER
+    response_type = "rag"
+    if answer == POLICY_NOT_FOUND_ANSWER:
+        response_type = "policy_not_found"
+    elif answer == FALLBACK_ANSWER:
+        response_type = "fallback"
+
+    return {"answer": answer, "sources": matches, "response_type": response_type}

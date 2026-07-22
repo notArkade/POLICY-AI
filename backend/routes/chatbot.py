@@ -18,6 +18,7 @@ def chat(request: ChatRequest):
         return {
             "answer": static_response,
             "sources": [],
+            "response_type": "greeting",
         }
 
     try:
@@ -25,6 +26,7 @@ def chat(request: ChatRequest):
         return {
             "answer": result["answer"],
             "sources": result["sources"],
+            "response_type": result.get("response_type", "rag"),
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
